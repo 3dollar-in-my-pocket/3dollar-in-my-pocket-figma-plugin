@@ -2,10 +2,27 @@
 
 Design System 파일에서 카테고리 아이콘을 관리하고, 사장님 가게 mappin 이미지를 만든다.
 
-## 등록
+## 설치
 
-빌드 필요 없음. Figma 데스크톱 앱 → Plugins → Development → **Import plugin from manifest…** → 이 폴더의 `manifest.json`.
-이미 등록돼 있다면 다시 실행만 하면 된다 (파일을 매번 새로 읽음).
+빌드 필요 없음. Figma **데스크톱 앱**이 필요하다 (브라우저에서는 개발용 플러그인을 등록할 수 없음).
+
+```bash
+git clone https://github.com/3dollar-in-my-pocket/3dollar-in-my-pocket-figma-plugin.git
+```
+
+Figma 데스크톱 → Plugins → Development → **Import plugin from manifest…** → clone한 폴더의 `manifest.json`.
+
+Design System 파일 **편집 권한**이 있어야 쓸 수 있다. 보기 권한만 있으면 Figma가 플러그인 실행을 막는다.
+
+## 업데이트와 버전
+
+버전은 git 태그(`v1.0.0` …)로 관리한다. Figma 개발용 플러그인에는 자체 버전 개념이 없고, 실행할 때마다 폴더의 파일을 새로 읽는다.
+
+```bash
+git pull
+```
+
+받은 뒤 플러그인을 다시 실행하면 반영된다. 특정 버전으로 되돌리려면 `git checkout <태그>`.
 
 ## 파일 구조 (Design System > Icons)
 
