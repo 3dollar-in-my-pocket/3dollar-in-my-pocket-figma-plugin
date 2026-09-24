@@ -1,0 +1,148 @@
+name: Release to Notion
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "check = 읽기만 해서 토큰·페이지 접근 점검 / upload = 노션 파일 교체"
+        type: choice
+        options: [check, upload]
+        default: check
+      tag:
+        description: "upload 모드에서 올릴 태그 (예: v1.0.0)"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-to-notion
+  cancel-in-progress: false
+
+env:
+  NOTION_VERSION: "2026-03-11"
+  NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+  NOTION_PAGE_ID: ${{ vars.NOTION_PAGE_ID }}
+  ZIP_PREFIX: 3dollar-in-my-pocket-figma-plugin
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve mode and tag
+        id: meta
+        env:
+          EVENT: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_MODE: ${{ inputs.mode }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "release" ]; then
+            mode=upload; tag="$RELEASE_TAG"
+          else
+            mode="$INPUT_MODE"; tag="$INPUT_TAG"
+          fi
+          if [ "$mode" = "upload" ]; then
+            [ -n "$tag" ] || { echo "::error::upload 모드에는 tag가 필요합니다"; exit 1; }
+            git rev-parse -q --verify "refs/tags/$tag" >/dev/null || { echo "::error::태그 $tag 가 없습니다"; exit 1; }
+          fi
+          [ -n "$NOTION_TOKEN" ] || { echo "::error::NOTION_TOKEN secret이 없습니다"; exit 1; }
+          [ -n "$NOTION_PAGE_ID" ] || { echo "::error::NOTION_PAGE_ID variable이 없습니다"; exit 1; }
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "zip=${ZIP_PREFIX}-${tag}.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Build ZIP
+        if: steps.meta.outputs.mode == 'upload'
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          ZIP: ${{ steps.meta.outputs.zip }}
+        run: |
+          set -euo pipefail
+          git archive --format=zip --prefix="${ZIP_PREFIX}/" -o "$ZIP" "$TAG" \
+            manifest.json code.js ui.html README.md
+          unzip -l "$ZIP"
+
+      - name: Attach ZIP to GitHub release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          ZIP: ${{ steps.meta.outputs.zip }}
+        run: gh release upload "$TAG" "$ZIP" --clobber
+
+      - name: Notion
+        env:
+          MODE: ${{ steps.meta.outputs.mode }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          ZIP: ${{ steps.meta.outputs.zip }}
+        run: |
+          set -euo pipefail
+
+          notion() {
+            local method="$1" path="$2"; shift 2
+            local attempt=1 out code body
+            while true; do
+              out=$(curl -sS -w '\n%{http_code}' -X "$method" "https://api.notion.com/v1${path}" \
+                -H "Authorization: Bearer ${NOTION_TOKEN}" \
+                -H "Notion-Version: ${NOTION_VERSION}" "$@") || out=$'\n000'
+              code="${out##*$'\n'}"
+              body="${out%$'\n'*}"
+              if [[ "$code" == 2* ]] && ! grep -q '"isNotionError"' <<<"$body"; then
+                printf '%s' "$body"
+                return 0
+              fi
+              retryable=false
+              [[ "$code" == 000 || "$code" == 409 || "$code" == 429 || "$code" == 5* ]] && retryable=true
+              grep -q 'MemcachedCrossCellError' <<<"$body" && retryable=true
+              if [ "$retryable" != true ] || [ "$attempt" -ge 5 ]; then
+                echo "::error::Notion ${method} ${path} 실패 (HTTP ${code}): ${body}" >&2
+                return 1
+              fi
+              echo "Notion ${method} ${path}: HTTP ${code}, ${attempt}번째 재시도" >&2
+              sleep $((attempt * 3))
+              attempt=$((attempt + 1))
+            done
+          }
+
+          children=$(notion GET "/blocks/${NOTION_PAGE_ID}/children?page_size=100")
+          block_id=$(jq -r '[.results[] | select(.type == "file")][0].id // empty' <<<"$children")
+          if [ -z "$block_id" ]; then
+            echo "::error::페이지에서 파일 블록을 찾지 못했습니다. 페이지에 플러그인 ZIP 파일 블록이 있어야 합니다."
+            exit 1
+          fi
+          current=$(jq -r --arg id "$block_id" '.results[] | select(.id == $id) | .file | "\(.name // "-") / 캡션: \([.caption[]?.plain_text] | join(""))"' <<<"$children")
+          echo "페이지 접근 OK · 파일 블록 ${block_id} · 현재 ${current}"
+
+          if [ "$MODE" = "check" ]; then
+            echo "check 모드라 여기서 끝냅니다. 노션은 바뀌지 않았습니다."
+            exit 0
+          fi
+
+          upload=$(notion POST /file_uploads -H 'Content-Type: application/json' \
+            --data "$(jq -n --arg f "$ZIP" '{filename: $f, content_type: "application/zip"}')")
+          upload_id=$(jq -r '.id' <<<"$upload")
+          notion POST "/file_uploads/${upload_id}/send" -F "file=@${ZIP};type=application/zip" >/dev/null
+          echo "업로드 완료 · ${upload_id}"
+
+          caption="플러그인 파일 (${TAG})"
+          notion PATCH "/blocks/${block_id}" -H 'Content-Type: application/json' \
+            --data "$(jq -n --arg id "$upload_id" --arg c "$caption" \
+              '{file: {type: "file_upload", file_upload: {id: $id}, caption: [{type: "text", text: {content: $c}}]}}')" >/dev/null
+
+          after=$(notion GET "/blocks/${block_id}")
+          name=$(jq -r '.file.name // empty' <<<"$after")
+          got_caption=$(jq -r '[.file.caption[]?.plain_text] | join("")' <<<"$after")
+          echo "교체 후 · 파일 ${name} · 캡션 ${got_caption}"
+          if [ "$name" != "$ZIP" ] || [ "$got_caption" != "$caption" ]; then
+            echo "::error::교체 결과가 예상과 다릅니다 (기대: ${ZIP} / ${caption})"
+            exit 1
+          fi
+          echo "노션 파일을 ${TAG} 로 교체했습니다."

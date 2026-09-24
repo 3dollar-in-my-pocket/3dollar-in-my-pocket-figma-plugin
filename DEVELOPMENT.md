@@ -11,6 +11,24 @@ git pull
 git checkout <태그>
 ```
 
+## 릴리즈
+
+```bash
+git tag -a v1.1.0 -m "v1.1.0: 변경 내용"
+git push origin v1.1.0
+gh release create v1.1.0 --title v1.1.0 --notes "변경 내용"
+```
+
+릴리즈를 발행하면 `.github/workflows/release-to-notion.yml`이 자동으로:
+
+1. 태그 기준 ZIP 생성 (`manifest.json`, `code.js`, `ui.html`, `README.md`)
+2. GitHub 릴리즈에 ZIP 첨부
+3. 노션 사용법 페이지의 파일 블록을 새 ZIP으로 교체하고 캡션을 `플러그인 파일 (v1.1.0)`으로 변경
+
+필요한 설정: secret `NOTION_TOKEN` (노션 내부 연결 토큰, 사용법 페이지에 접근 권한 부여), variable `NOTION_PAGE_ID`.
+
+Actions 탭에서 수동 실행도 된다. `check`는 읽기만 해서 토큰·페이지 접근을 점검하고, `upload`는 지정한 태그로 교체한다.
+
 ## 파일 구조 (Design System > Icons)
 
 ```
