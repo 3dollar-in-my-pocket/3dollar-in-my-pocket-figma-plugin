@@ -12,6 +12,7 @@ const BOX = { labelH: 18, pinH: 48, gap: 16 };
 const ARCHIVE_MIN = { w: 273, h: 251 };
 const FRAME_GAP = 40;
 const INSET = 28;
+const REFERENCE_SCALE = 4;
 
 figma.showUI(__html__, { width: 420, height: 660, themeColors: true });
 
@@ -343,6 +344,26 @@ async function generate(ctx, id) {
   return value + ' mappin ' + created.length + '장을 만들었습니다.';
 }
 
+// ---------- ChatGPT 참고 이미지 ----------
+
+async function referenceIcons(ctx) {
+  const icons = [];
+  for (const comp of ctx.set.children) {
+    if (isArchived(comp)) continue;
+    icons.push(await comp.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: REFERENCE_SCALE } }));
+  }
+  return icons;
+}
+
+async function sendReference() {
+  try {
+    const ctx = await locate();
+    figma.ui.postMessage({ type: 'reference', icons: await referenceIcons(ctx) });
+  } catch (e) {
+    figma.ui.postMessage({ type: 'reference-error', message: e.message });
+  }
+}
+
 // ---------- 메시지 ----------
 
 async function run(task) {
@@ -364,5 +385,6 @@ figma.ui.onmessage = function (msg) {
   if (msg.type === 'archive') return run(function (ctx) { return archiveIcon(ctx, msg.id); });
   if (msg.type === 'restore') return run(function (ctx) { return restoreIcon(ctx, msg.id); });
   if (msg.type === 'generate') return run(function (ctx) { return generate(ctx, msg.id); });
+  if (msg.type === 'reference') return sendReference();
   if (msg.type === 'close') figma.closePlugin();
 };
