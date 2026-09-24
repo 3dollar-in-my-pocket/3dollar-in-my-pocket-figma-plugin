@@ -1,0 +1,16 @@
+{
+  "name": "가슴속 3천원 — 카테고리 아이콘 관리",
+  "id": "1521470892336610947",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": [
+    "figma"
+  ],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": [
+      "none"
+    ]
+  }
+}
