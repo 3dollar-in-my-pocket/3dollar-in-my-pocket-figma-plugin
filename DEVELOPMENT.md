@@ -23,7 +23,7 @@ gh release create v1.1.0 --title v1.1.0 --notes "변경 내용"
 
 1. 태그 기준 ZIP 생성 (`manifest.json`, `code.js`, `ui.html`, `README.md`)
 2. GitHub 릴리즈에 ZIP 첨부
-3. 노션 사용법 페이지의 파일 블록을 새 ZIP으로 교체하고 캡션을 `플러그인 파일 (v1.1.0)`으로 변경
+3. 노션 사용법 페이지의 파일 블록을 새 ZIP으로 교체 (캡션 등 페이지에서 직접 쓴 글은 그대로 둠)
 
 필요한 설정: secret `NOTION_TOKEN` (노션 내부 연결 토큰, 사용법 페이지에 접근 권한 부여), variable `NOTION_PAGE_ID`.
 

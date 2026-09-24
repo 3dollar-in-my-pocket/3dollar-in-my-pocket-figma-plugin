@@ -132,17 +132,20 @@ jobs:
           notion POST "/file_uploads/${upload_id}/send" -F "file=@${ZIP};type=application/zip" >/dev/null
           echo "업로드 완료 · ${upload_id}"
 
-          caption="플러그인 파일 (${TAG})"
+          caption_before=$(jq -r --arg id "$block_id" '.results[] | select(.id == $id) | [.file.caption[]?.plain_text] | join("")' <<<"$children")
           notion PATCH "/blocks/${block_id}" -H 'Content-Type: application/json' \
-            --data "$(jq -n --arg id "$upload_id" --arg c "$caption" \
-              '{file: {type: "file_upload", file_upload: {id: $id}, caption: [{type: "text", text: {content: $c}}]}}')" >/dev/null
+            --data "$(jq -n --arg id "$upload_id" '{file: {type: "file_upload", file_upload: {id: $id}}}')" >/dev/null
 
           after=$(notion GET "/blocks/${block_id}")
           name=$(jq -r '.file.name // empty' <<<"$after")
-          got_caption=$(jq -r '[.file.caption[]?.plain_text] | join("")' <<<"$after")
-          echo "교체 후 · 파일 ${name} · 캡션 ${got_caption}"
-          if [ "$name" != "$ZIP" ] || [ "$got_caption" != "$caption" ]; then
-            echo "::error::교체 결과가 예상과 다릅니다 (기대: ${ZIP} / ${caption})"
+          caption_after=$(jq -r '[.file.caption[]?.plain_text] | join("")' <<<"$after")
+          echo "교체 후 · 파일 ${name}"
+          if [ "$name" != "$ZIP" ]; then
+            echo "::error::교체된 파일 이름이 다릅니다 (기대: ${ZIP}, 실제: ${name})"
+            exit 1
+          fi
+          if [ "$caption_after" != "$caption_before" ]; then
+            echo "::error::캡션이 바뀌었습니다. 캡션은 건드리지 않아야 합니다."
             exit 1
           fi
           echo "노션 파일을 ${TAG} 로 교체했습니다."
