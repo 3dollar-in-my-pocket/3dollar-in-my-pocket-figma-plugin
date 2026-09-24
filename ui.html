@@ -81,13 +81,13 @@
     background: transparent; color: var(--text); font: inherit; outline: none; resize: vertical;
   }
   textarea:focus { border-color: var(--brand); }
-  .step { display: flex; flex-direction: column; gap: 8px; }
-  .step + .step { border-top: 1px dashed var(--border); padding-top: 10px; }
-  .step-title { margin: 0; font-weight: 600; }
   .row { display: flex; gap: 6px; }
   .row .btn { flex: 1; }
   ol.guide { margin: 0; padding-left: 16px; color: var(--dim); }
   #ai-preview { height: 84px; font-size: 10px; color: var(--dim); }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .back { align-self: flex-start; padding: 0; border: none; background: none; color: var(--dim); font: inherit; cursor: pointer; }
+  .back:hover { color: var(--text); }
 </style>
 </head>
 <body>
@@ -96,40 +96,22 @@
     <button id="tab-mappin">mappin 생성</button>
   </nav>
 
-  <main>
+  <main id="main">
     <section id="icons" class="on">
       <div class="card">
-        <h2>새 아이콘 추가</h2>
-
-        <div class="step">
-          <p class="step-title">1. ChatGPT로 이미지 만들기 <span class="hint">· 이미지가 있으면 건너뛰세요</span></p>
-          <input type="text" id="ai-name" placeholder="카테고리 이름 (예: 소떡소떡)" autocomplete="off" />
-          <textarea id="ai-desc" rows="2" placeholder="설명 (선택) 예: 소시지와 떡을 번갈아 꽂은 꼬치"></textarea>
-          <div class="row">
-            <button class="btn" id="ai-sheet">아이콘 모음 이미지 복사</button>
-            <button class="btn" id="ai-prompt" disabled>프롬프트 복사</button>
-          </div>
-          <textarea id="ai-preview" readonly placeholder="카테고리 이름을 적으면 프롬프트가 여기에 만들어져요"></textarea>
-          <ol class="guide">
-            <li>ChatGPT에 아이콘 모음 이미지 붙여넣기</li>
-            <li>카테고리 사진을 이어서 첨부</li>
-            <li>프롬프트를 붙여넣고 보내기</li>
-            <li>만들어진 이미지를 PNG로 저장</li>
-          </ol>
+        <div class="card-head">
+          <h2>새 아이콘 추가</h2>
+          <button class="btn" id="go-ai">GPT로 만들기</button>
         </div>
-
-        <div class="step">
-          <p class="step-title">2. 이미지 등록</p>
-          <p class="hint">정사각형 · 투명 배경 PNG · 72×72 이상</p>
-          <div class="picked">
-            <img id="add-preview" class="hidden" alt="" />
-            <button class="btn" id="add-pick">이미지 선택</button>
-            <span id="add-file" class="hint"></span>
-          </div>
-          <input type="text" id="add-name" placeholder="등록 이름 (영문 소문자 · 숫자 · _)" autocomplete="off" />
-          <ul class="checks" id="add-checks"></ul>
-          <button class="btn primary" id="add-go" disabled>추가</button>
+        <p class="hint">정사각형 · 투명 배경 PNG · 72×72 이상</p>
+        <div class="picked">
+          <img id="add-preview" class="hidden" alt="" />
+          <button class="btn" id="add-pick">이미지 선택</button>
+          <span id="add-file" class="hint"></span>
         </div>
+        <input type="text" id="add-name" placeholder="등록 이름 (영문 소문자 · 숫자 · _)" autocomplete="off" />
+        <ul class="checks" id="add-checks"></ul>
+        <button class="btn primary" id="add-go" disabled>추가</button>
       </div>
 
       <h2 id="active-title">아이콘</h2>
@@ -137,6 +119,27 @@
 
       <h2 id="archived-title">보관</h2>
       <div class="list" id="archived"></div>
+    </section>
+
+    <section id="ai">
+      <button class="back" id="ai-back">← 카테고리 아이콘</button>
+      <div class="card">
+        <h2>GPT로 아이콘 이미지 만들기</h2>
+        <input type="text" id="ai-name" placeholder="카테고리 이름 (예: 소떡소떡)" autocomplete="off" />
+        <textarea id="ai-desc" rows="2" placeholder="설명 (선택) 예: 소시지와 떡을 번갈아 꽂은 꼬치"></textarea>
+        <div class="row">
+          <button class="btn" id="ai-sheet">아이콘 모음 이미지 복사</button>
+          <button class="btn" id="ai-prompt" disabled>프롬프트 복사</button>
+        </div>
+        <textarea id="ai-preview" readonly placeholder="카테고리 이름을 적으면 프롬프트가 여기에 만들어져요"></textarea>
+        <ol class="guide">
+          <li>ChatGPT에 아이콘 모음 이미지 붙여넣기</li>
+          <li>카테고리 사진을 이어서 첨부</li>
+          <li>프롬프트를 붙여넣고 보내기</li>
+          <li>만들어진 이미지를 PNG로 저장</li>
+        </ol>
+        <button class="btn primary" id="ai-done">이미지 등록하러 가기</button>
+      </div>
     </section>
 
     <section id="mappin">
@@ -180,13 +183,16 @@
   }
 
   function tab(name) {
-    ['icons', 'mappin'].forEach(function (t) {
-      $(t).classList.toggle('on', t === name);
-      $('tab-' + t).classList.toggle('on', t === name);
-    });
+    ['icons', 'mappin', 'ai'].forEach(function (t) { $(t).classList.toggle('on', t === name); });
+    $('tab-icons').classList.toggle('on', name === 'icons' || name === 'ai');
+    $('tab-mappin').classList.toggle('on', name === 'mappin');
+    $('main').scrollTop = 0;
   }
   $('tab-icons').onclick = function () { tab('icons'); };
   $('tab-mappin').onclick = function () { tab('mappin'); };
+  $('go-ai').onclick = function () { tab('ai'); };
+  $('ai-back').onclick = function () { tab('icons'); };
+  $('ai-done').onclick = function () { tab('icons'); $('add-pick').focus(); };
 
   function thumbUrl(icon) {
     if (thumbs[icon.id]) URL.revokeObjectURL(thumbs[icon.id]);
