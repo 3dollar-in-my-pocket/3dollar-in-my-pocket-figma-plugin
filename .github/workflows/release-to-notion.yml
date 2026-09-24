@@ -31,7 +31,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -134,7 +134,7 @@ jobs:
 
           caption_before=$(jq -r --arg id "$block_id" '.results[] | select(.id == $id) | [.file.caption[]?.plain_text] | join("")' <<<"$children")
           notion PATCH "/blocks/${block_id}" -H 'Content-Type: application/json' \
-            --data "$(jq -n --arg id "$upload_id" '{file: {type: "file_upload", file_upload: {id: $id}}}')" >/dev/null
+            --data "$(jq -n --arg id "$upload_id" '{file: {file_upload: {id: $id}}}')" >/dev/null
 
           after=$(notion GET "/blocks/${block_id}")
           name=$(jq -r '.file.name // empty' <<<"$after")
